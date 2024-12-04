@@ -192,12 +192,12 @@ class App(customtkinter.CTk):
 
         system_message = {
             "role": "system",
-            "content": f"""You are an assistant that helps calculate how well candidates fit (fit score) a given role based on salary and skills. Provide a score between 0 to 1, where 1 is a perfect match. 
-              Return the result in JSON format where each candidate gets: [Id: , Score: ] and it is in attribute: candidates"""
+            "content": f"""You are an assistant that helps calculate how well candidates fit (fit score) a given role based on salary and skills. Please ensure that the score is calculated and returned as a floating-point number with exactly two decimal places. Provide a score between 0 to 1, where 1 is a candidate that has all skills. 
+            The fourth value of candidate is his wanted salary, the smaller it is the better. Skills play the most important role when calculating the score.Return the result in JSON format where each candidate gets: [Id: , Score: ] and it is in attribute: candidates"""
         }
 
         calc_msg = f"""
-        Calculate the score for those candidates given the role.
+        Calculate the score for those candidates given the role. The better the candidate, the bigger the score.
 
         Candidates: {candidates_json}
         Role: {role_json}
