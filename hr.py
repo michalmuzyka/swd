@@ -2,9 +2,19 @@ import customtkinter
 import json
 import os
 from CTkListbox import *
+import openai
+import asyncio
+from openai import AsyncOpenAI
 
 customtkinter.set_appearance_mode("System")
 customtkinter.set_default_color_theme("blue")
+
+# Set your OpenAI API key
+
+client = AsyncOpenAI(api_key=os.environ['CHATGPT_API_KEY'])
+#client.api_key = os.environ['CHATGPT_API_KEY']
+# openai.api_key = os.environ['CHATGPT_API_KEY']
+
 
 class App(customtkinter.CTk):
     def __init__(self):
@@ -102,7 +112,7 @@ class App(customtkinter.CTk):
         self.save_button = customtkinter.CTkButton(master=self.candidates_frame, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="Zapisz dane", command=self.save_data)
         self.save_button.grid(row=2, column=0, padx=20, pady=5, sticky="nsew")
 
-        self.save_button = customtkinter.CTkButton(master=self.candidates_frame, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="Wyznacz decyzje", command=self.calculate_decision)
+        self.save_button = customtkinter.CTkButton(master=self.candidates_frame, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="Wyznacz decyzje", command=self.calculate_decision_click)
         self.save_button.grid(row=3, column=0, padx=20, pady=5, sticky="nsew")
         
         self.decided_label = customtkinter.CTkLabel(self.candidates_frame, text="Wybrani kandydaci:", font=customtkinter.CTkFont(size=14))
@@ -159,20 +169,133 @@ class App(customtkinter.CTk):
         self.team_textbox.insert("1.0", desc)
 
     
-    def calculate_decision(self):
+    def calculate_decision_click(self):
+        asyncio.run(self.calculate_decision())
+
+    async def calculate_decision(self):
         self.save_data()
-        
-        decision = self.calculate_decision_inner()
-        
+         
+        candidates_json = load_from_json("candidates.json")
+        decision =  await self.calculate_decision_inner(candidates_json)
+
+        decision, candidates_json  = self.FilterCandidates(decision,candidates_json)
+
+        self.GetBestCandidates(decision,candidates_json)
+
         with open('decision.json', 'w') as f:
             json.dump(decision, f)
  
         
-    def calculate_decision_inner(self):
+    async def calculate_decision_inner(self,candidates_json):
         decision = [] 
+        role_json = load_from_json("team.json")
+
+        system_message = {
+            "role": "system",
+            "content": f"""You are an assistant that helps calculate how well candidates fit (fit score) a given role based on salary and skills. Provide a score between 0 to 1, where 1 is a perfect match. 
+              Return the result in JSON format where each candidate gets: [Id: , Score: ] and it is in attribute: candidates"""
+        }
+
+        calc_msg = f"""
+        Calculate the score for those candidates given the role.
+
+        Candidates: {candidates_json}
+        Role: {role_json}
         
+        Return a JSON with each candidate's fit score.
+        """
+        user_message = {
+            "role": "user",
+            "content": calc_msg
+        }
+
+
+        response_format_set = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "email_score_schema",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "Id": {
+                        "description": "A unique identifier for the item (string). Read from the candidate input",
+                        "type": "string"
+                    },
+                    "Score": {
+                        "description": "A score between 0 and 1 representing the match quality",
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                    }
+                },
+                "required": ["Id", "Score"],  # Ensure both properties are included
+                "additionalProperties": False  # No extra properties allowed
+            }
+        }
+        }
+
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages= [system_message,user_message],
+            response_format= response_format_set
+        )
+        print(response)
+        # Parse the response and return the output as JSON
+        result = response.choices
+        print(result)
+        parsed_result = json.loads(result[0].message.content)
+        decision = parsed_result["candidates"]
+
+        print(decision)
         return decision
-        
+    
+    def FilterCandidates(self, decisions,candidates):
+
+        max_salary = float(self.max_budget.get())
+
+        for res in decisions:
+            id = res.get("Id")
+            candidateInfo = next((item for item in candidates if item[2] == id),None)
+            wanted_salary = candidateInfo[3]
+            if(wanted_salary > max_salary):
+                res["Score"] = 0
+                res["Hired"] = False
+
+
+        return decisions, candidates
+
+    def GetBestCandidates(self,decisions,candidates):
+
+        #all possible candidates
+        filtered_decisions = [decision for decision in decisions if "Hired" not in decision]
+        sorted_decisions = sorted(filtered_decisions, key=lambda x: x["Score"])
+
+        emp_to_hire = int(self.count.get())
+        top_candidates = sorted_decisions[:emp_to_hire]
+        remaining_candidates = sorted_decisions[emp_to_hire:]
+
+        #Fill
+        self.decided_listbox.delete(0, "end")
+        for candidate in top_candidates:
+            candidate["Hired"] = True
+            candidateInfo = next((item for item in candidates if item[2] == candidate["Id"]),None)
+            candidate_display = f"{candidateInfo[0]} {candidateInfo[1]}"
+            self.decided_listbox.insert("end",candidate_display)
+
+        for candidate in remaining_candidates:
+            candidate["Hired"] = False 
+
+        pass
+
+
+
+
+# Load candidates from candidates.json
+def load_from_json(file_path):
+    with open(file_path, 'r') as file:
+        candidates = json.load(file)
+    return candidates
+
 if __name__ == "__main__":
     app = App()
     app.mainloop()

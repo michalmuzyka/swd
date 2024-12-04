@@ -1,6 +1,7 @@
 import tkinter
 import tkinter.messagebox
 import customtkinter
+import json
 
 customtkinter.set_appearance_mode("System")
 customtkinter.set_default_color_theme("blue")
@@ -45,6 +46,34 @@ class App(customtkinter.CTk):
 
     def check_recrutation(self):
         
+        # load decions
+        with open("decision.json","r") as file:
+            decisions = json.load(file)
+
+        search_id = self.ver_entry.get()
+
+        obtained_result = next((item for item in decisions if item["Id"] == search_id),None)
+
+
+        self.textbox.delete("0.0", "end")
+
+        if obtained_result is None:
+            self.textbox.insert("0.0", "Brak wyników rekrutacji dla podanego kodu weryfikacyjnego\n")
+            return 
+        
+        show_result = True
+
+        if obtained_result.get("Score") is None:
+            self.textbox.insert("0.0", "Brak wyliczonego wartości Score\n")
+            show_result = False
+        if obtained_result.get("Hired") is None:
+            self.textbox.insert("0.0", "Brak informacji o zatrudnieniu\n")
+            show_result = False
+        
+        if show_result:
+            self.textbox.insert("0.0", f"Wyznaczony wynik rekrutacji: {obtained_result.get("Score")}\n")
+            self.textbox.insert("0.0", f"Zatrudniony: {obtained_result.get("Hired")}\n")
+
         pass
 
 if __name__ == "__main__":
