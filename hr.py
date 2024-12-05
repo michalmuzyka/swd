@@ -193,7 +193,7 @@ class App(customtkinter.CTk):
         system_message = {
             "role": "system",
             "content": f"""You are an assistant that helps calculate how well candidates fit (fit score) a given role based on salary and skills. Please ensure that the score is calculated and returned as a floating-point number with exactly two decimal places. Provide a score between 0 to 1, where 1 is a candidate that has all skills. 
-            The fourth value of candidate is his wanted salary, the smaller it is the better. Skills play the most important role when calculating the score.Return the result in JSON format where each candidate gets: [Id: , Score: ] and it is in attribute: candidates"""
+            Consider all candidates before giving them a score. The fourth value of candidate is his wanted salary, the smaller it is the better. Skills play the most important role when calculating the score.Return the result in JSON format where each candidate gets: [Id: , Score: ] and it is in attribute: candidates"""
         }
 
         calc_msg = f"""
@@ -268,7 +268,7 @@ class App(customtkinter.CTk):
 
         #all possible candidates
         filtered_decisions = [decision for decision in decisions if "Hired" not in decision]
-        sorted_decisions = sorted(filtered_decisions, key=lambda x: x["Score"])
+        sorted_decisions = sorted(filtered_decisions, key=lambda x: x["Score"],reverse=True)
 
         emp_to_hire = int(self.count.get())
         top_candidates = sorted_decisions[:emp_to_hire]
